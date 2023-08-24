@@ -1,0 +1,488 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0\fnil\fcharset0 Courier New;}}
+{\*\generator Msftedit 5.41.21.2510;}\viewkind4\uc1\pard\lang2057\f0\fs22 ################################################################################\par
+############       R script for mixed models and dhglms     ####################\par
+################################################################################\par
+\par
+# The following script contains information on simulating datasets and running\par
+some of the models presented in the main text using R to call the WinBUGS\par
+programs. The models themselves are written in WinBUGS coding and are also\par
+available as part of the appendix #\par
+\par
+## The WinBUGS models that form part of the analysis are based on WinBUGS code from Gelman and Hill (2007),Ronnegard et al. (2010) & Lunn et al. (2013)and \par
+\par
+\par
+##Refs ##\par
+Gelman, A. & Hill, J. (2007). Data Analysis Using Regression and Multilevel/Hierarchical Models. Cambridge University Press, USA.\par
+Lunn, D., Jackson, C., Best, N., Thomas, A. & Spiegelhalter, D. (2013)\par
+The BUGS book \endash  A Practical Introduction to Bayesian Analysis. CRC Press/ Chapman & Hall.\par
+R\'f6nneg\'e5rd, L., Felleki, M., Fikse, F., Mulder, H. A. & Strandberg, E. (2010). Genetic heterogeneity of residual variance-estimation of variance components using double hierarchical generalized linear models. Genetics Selection & Evolution, 42. \par
+\par
+Code from Ronnegard et al. (2010) can be found at: http://users.du.se/~lrn/Rcode/dhglm_test_code.R\par
+\par
+## Simulating Data ##\par
+\par
+library(TeachingDemos)\par
+\par
+## The teaching demo library can be a useful starting point for simulating\par
+## data for mixed models. We use it here to create a simaple dataframe that we can add to later ##\par
+\par
+## Here simulates a response variable for 24 individuals each sampled 10 times,\par
+## giving a total sample size of 240. Half the individuals are classed as \par
+## female, the other  half as male. The mean response variable for females\par
+## had a mean of 10 and for males this was 20. Between-individual standard deviation was\par
+## set at 1 and the residual standard deviation was set at 3 ##\par
+\par
+\par
+sig.id<-1\par
+sig.e <-3\par
+\par
+simul <- simfun(\{\par
+  n.ids <- 24\par
+   n <- 240\par
+  response <- h[sex] +rnorm(n.ids,0,sig.id)[id] + rnorm(n,0,sig.e)\par
+\}, sig.id=1,  sig.e=3, h=c(10,20),\par
+  drop=c('sig.id','sig.e','h','n.ids','n'))\par
+\par
+## useful for simple mixed models if no differences in within-individual variance\par
+## i.e. homoscedastic residual variance ##\par
+\par
+tmpdat <- data.frame(id=gl(24,10),sex=gl(2,10,length=240, labels=c('F','M')))\par
+simdat <- simul(tmpdat)\par
+\par
+#\par
+library(arm)\par
+\par
+## Confirm that simulated values roughly match up with results ##\par
+## lmer provides a quick and easy way to check this with a \par
+## random-intercept mixed model ##\par
+\par
+m1 <- lmer(response~ sex + (1|id), data=simdat)\par
+\par
+summary(m1)\par
+\par
+display(m1)\par
+\par
+## Std. Dev for id should be 1; Std. Dev for Residual should be 3 ##\par
+\par
+##\par
+##\par
+## Can also simulate data by hand, longer but more flexible in the end #\par
+\par
+alpha <- 10         ## intercept (females) ##\par
+b1<-10              ## coefficient for sex (males 10 units bigger) ##\par
+b2 <- 0.9           ## coefficient for a continous variable (called age here) ## \par
+\par
+## 24 individuals ##\par
+\par
+n.ids <- 24\par
+\par
+## 10 observations per individual ##\par
+n.obs <-10\par
+\par
+## Total sample size ##\par
+\par
+n<- n.ids*n.obs\par
+sig.id<-1\par
+id<-simdat$id ## List of ids ##\par
+\par
+BetVar <-rnorm(n.ids,0,sig.id)[id] ## between-individual sd taken here as = 1 ##\par
+                                   ## used to generate between-individual variation in intercept ##\par
+## Residual Variance ##\par
+\par
+ResidVar<- rnorm(n,0, 3) ## homoscedastic = one value here taken as 3 ##\par
+\par
+simdat$Age<-seq(1,n.obs) ## Create a random continuous variable, need not be called Age ##\par
+simdat$SEX <-as.numeric(simdat$sex)-1\par
+\par
+## generate new response variable ##\par
+responseA <- alpha + (b1*simdat$SEX) + (b2*simdat$Age)+BetVar + ResidVar\par
+         \par
+simdat$responseA<-responseA\par
+\par
+\par
+## Can then also check with a random-intercept mixed effects model in WinBUGS if required ##\par
+\par
+library(arm); \par
+library(R2WinBUGS) ## ensure we have this loaded for WinBUGS ##\par
+\par
+## Also ensure that working directory contains the different WinBUGS models for ease of use ##\par
+dir() ## check WinBUGS models are here - should create a list which includes names winBUGS model files ##\par
+\par
+## create data that WinBUGS will use ##\par
+y<-simdat$responseA  ## y is the response variable for WinBUGS here\par
+\par
+## covariates for fixed effects ##\par
+Age<-simdat$Age\par
+Sex<-simdat$SEX\par
+\par
+## ID for random effect ##\par
+id<-as.numeric(simdat$id)\par
+\par
+## sample size ##\par
+n<-240\par
+\par
+### Initial BUGS model has no dispersion model whatsoever, just homoscedastic residual errors ##\par
+## Data for BUGS ##\par
+BUGS1.data <- list("y","n","n.ids","Sex","Age","id")\par
+\par
+## initial values for BUGS ##\par
+BUGS1.inits <- function() \{list(alpha=rnorm(n.ids), beta=rnorm(2),mu.a=rnorm(1), sig.a = runif(1), sigma.y=runif(1))\}\par
+\par
+## parameters to save for BUGS ##\par
+\par
+BUGS1.parameters <- c("alpha","beta","sig.a","sigma.y","mu.a")\par
+\par
+## In WinBUGS code the name/ file of the model being called is specified in this case "RandInterceptModel.txt" ##\par
+## The bugs.directory provides the address for the folder that conatins the WinBUGS models ##\par
+\par
+BUGS.1 <- bugs(BUGS1.data, BUGS1.inits, BUGS1.parameters, "RandInterceptModel.txt", n.chains=3, n.iter=250000,n.burnin=50000, n.thin=10,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+\par
+## Note that debug is set to TRUE here which helps if model does not run as we can check error reports ##\par
+## Longer runs for models may be used depending on convergence and mixing etc. ##\par
+\par
+## summary ##\par
+print(BUGS.1)\par
+#\par
+quantile(BUGS.1$sims.list$sig.a,c(0.025,0.5,0.975)) ## individual level sd ##\par
+quantile(BUGS.1$sims.list$sigma.y,c(0.025,0.5,0.975)) ## residual sd\par
+#\par
+\par
+\par
+## Next step would to extend model to incorporate individual-level \par
+## residual variances but treat them as independent ##\par
+\par
+##\par
+\par
+##Individual Residual Variance ##\par
+\par
+IndResidSD<- rlnorm(n.ids,0, 0.3) ## generates estimates of residual sd for each individual ####\par
+                                  ## here we use a log-normal distribution when specifying residual sd ##\par
+\par
+IndResidSDVec<-rep(IndResidSD, each=n.obs)\par
+\par
+IndResidVec <- rnorm(n,0,IndResidSDVec)  ## Vector for residuals with heterogeneous individual residual sd ##\par
+                                     ##  Note that everyone is centered at 0 ##\par
+\par
+## plot can be used to check this out ##\par
+\par
+boxplot(IndResidVec~id)\par
+\par
+## generate new response variable - no longer homoscedastic ##\par
+responseB <- alpha + (b1*simdat$SEX) + (b2*simdat$Age)+BetVar + IndResidVec\par
+\par
+simdat$responseB<-responseB\par
+\par
+##\par
+\par
+## check it works quickly with variance functions in nlme ##\par
+\par
+library(nlme)\par
+\par
+m1a<- lme(responseB~sex+Age, random = ~1|id, weights=varIdent(form=~1|id), data=simdat)\par
+summary(m1a)\par
+\par
+## weights argument in nlme allows the residual sd to vary between specified groups using one group as a fixed reference point ##\par
+\par
+m1a$model$varStruct ## extract Variance Function Components from nlme ##\par
+\par
+VarFuncCoef<-c(1,m1a$model$varStruct) ## Have to add 1 onto Vector (as this was used as fixed reference point)#\par
+\par
+plot(VarFuncCoef, IndResidSD) ## Note that not perfect 1 to 1 mapping as nlme sets one value to 1 and then uses this as a reference point rather than giving raw values ##\par
+cor.test(VarFuncCoef, IndResidSD) ## Hopefully positive! ##\par
+\par
+##\par
+\par
+## Then can model independent individual-level variances in WinBUGS ##\par
+## NB: This type of model could also be run in the MCMCglmm package ##\par
+\par
+y<-simdat$responseB\par
+Age<-simdat$Age\par
+Sex<-simdat$SEX\par
+id<-as.numeric(simdat$id)\par
+n<-240\par
+\par
+\par
+\par
+BUGS2.data <- list("y","n","n.ids","Sex","Age","id") ## Bundle Data to pass to WinBUGS ##\par
+\par
+BUGS2.inits <- function() \{list(alpha=rnorm(n.ids), beta=rnorm(2),mu.a=rnorm(1), sig.a = runif(1), sigma.y=runif(n.ids))\} ## Suppy initial values for priors ##\par
+\par
+BUGS2.parameters <- c("alpha","beta","sig.a","sigma.y","mu.a") ## Create a list of parameters to save from WinBUGS output ##\par
+\par
+## To cal WinBUGS pass data, inits and parameters to save, specify the WinBUGS model being used and also specify no. chains, no. iterations and burn in etc.##\par
+\par
+BUGS.2 <- bugs(BUGS2.data, BUGS2.inits, BUGS2.parameters, "ModelWithIndependentVariances.txt", n.chains=3, n.iter=150000,n.burnin=20000, n.thin=10,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+\par
+\par
+\par
+## Don't have to run so long probably but if you were doing it in earnest then you would ##\par
+\par
+\par
+print(BUGS.2)\par
+\par
+\par
+WiSDMedian <- rep(NA, n.ids)\par
+WiSDUpper <- rep(NA, n.ids)\par
+WiSDLower <- rep(NA, n.ids)\par
+\par
+for(i in 1:n.ids)\{\par
+\par
+WiSDMedian[i] <-quantile(BUGS.2$sims.list$sigma.y[,i],c(0.5))\par
+WiSDUpper[i] <-quantile(BUGS.2$sims.list$sigma.y[,i],c(0.975))\par
+WiSDLower[i] <-quantile(BUGS.2$sims.list$sigma.y[,i],c(0.025))\par
+\par
+\}\par
+\par
+plot(WiSDMedian~IndResidSD, pch=19)\par
+\par
+## can add errors as well ##\par
+for(i in 1:n.ids)\{\par
+lines(x=c(IndResidSD[i],IndResidSD[i]), y= c(WiSDUpper[i],WiSDLower[i]))\par
+\}\par
+\par
+##############################################################################\par
+##############################################################################\par
+\par
+##### Next step is to define a model (e.g. log-normal) for the distribution of residuals. This\par
+##### exploits exchangeability and may give slightly better estimates as can pool over individuals to \par
+##### an extent, unlike before when estimates were completely independent. ##\par
+\par
+####\par
+#### Model uses same simulated data as before (i.e. modelling responseB) #\par
+\par
+BUGS3.data <- list("y","n","n.ids","Sex","Age","id")\par
+\par
+BUGS3.inits <- function() \{list(alpha=rnorm(n.ids), beta=rnorm(2),mu.a=rnorm(1), mu.sigma=rnorm(1), omega.sigma=runif(1),sig.a = runif(1), log.sigma=rnorm(n.ids))\}\par
+\par
+BUGS3.parameters <- c("alpha","beta","sig.a","sigma","mu.a","med.sigma", "mu.sigma","omega.sigma")\par
+BUGS.3 <- bugs(BUGS3.data, BUGS3.inits, BUGS3.parameters, "ModelWithLogNormalVariances.txt", n.chains=3, n.iter=150000,n.burnin=20000, n.thin=10,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+\par
+##\par
+\par
+print(BUGS.3)\par
+\par
+\par
+quantile(BUGS.3$sims.list$sig.a,c(0.025,0.5,0.975)) ## between-individual level SD##\par
+\par
+## Can pull out population median Residual SD ##\par
+quantile(BUGS.3$sims.list$med.sigma,c(0.025,0.5,0.975))\par
+\par
+## Other quick checks ##\par
+##\par
+WiSDMedian <- rep(NA, n.ids)\par
+WiSDUpper <- rep(NA, n.ids)\par
+WiSDLower <- rep(NA, n.ids)\par
+\par
+for(i in 1:n.ids)\{\par
+\par
+WiSDMedian[i] <-quantile((BUGS.3$sims.list$sigma[,i]),c(0.5))\par
+WiSDUpper[i] <-quantile((BUGS.3$sims.list$sigma[,i]),c(0.975))\par
+WiSDLower[i] <-quantile((BUGS.3$sims.list$sigma[,i]),c(0.025))\par
+\par
+\}\par
+\par
+plot(WiSDMedian~IndResidSD, pch=19)\par
+\par
+\par
+## can also include estimate of median sd on the plot ##\par
+MedSigma<-quantile(BUGS.3$sims.list$med.sigma,c(0.025,0.5,0.975))\par
+\par
+abline(a=MedSigma[2], b=0)\par
+abline(a=MedSigma[1], b=0, lty=2)\par
+abline(a=MedSigma[3], b=0, lty=2)\par
+\par
+## Note that when using this hierarchical model you do see some shrinkage towards the population mean ##\par
+## An alternative would be the use a half-Cauchy rather than log normal distribution\par
+## as the half-Cauchy as heavier tails there is less shrinkage to the populaiton mean ##\par
+## \par
+\par
+## To get the CVp ##\par
+\par
+quantile((exp(BUGS.3$sims.list$omega.sigma^2)-1)^0.5,c(0.025,0.5,0.975)) ## cv from Limpert (2001) - see main text\par
+\par
+###############################################################################\par
+\par
+\par
+## In BUGS model 4 residual variance is modelled with half-Cauchy rather than log-normal,\par
+## an interesting extension but not easy to model fixed effects with half-Cauchy or\par
+## get nice estimates of hyperparameters for interpretation ##\par
+\par
+\par
+BUGS4.data <- list("y","n","n.ids","Sex","Age","id")\par
+\par
+BUGS4.inits <- function() \{list(alpha=rnorm(n.ids), beta=rnorm(2),mu.a=rnorm(1), z=rnorm(n.ids), gamma = rgamma(n.ids,1),sig.a = runif(1), B=runif(1))\}\par
+\par
+BUGS4.parameters <- c("alpha","beta","sig.a","sigma","mu.a","B")\par
+BUGS.4 <- bugs(BUGS4.data, BUGS4.inits, BUGS4.parameters, "ModelWithHalfCauchyVariances.txt", n.chains=3, n.iter=150000,n.burnin=20000, n.thin=10,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+##\par
+\par
+\par
+plot(BUGS.4)\par
+print(BUGS.4)\par
+\par
+\par
+quantile(BUGS.4$sims.list$sig.a,c(0.025,0.5,0.975)) ## between-individual level sd ##\par
+\par
+\par
+\par
+## Can pull out median Bird SD ##\par
+quantile(BUGS.4$sims.list$B,c(0.025,0.5,0.975)) ## NB Cauchy has heavier tails so less shrinkage to mean ##\par
+\par
+WiSDMedian <- rep(NA, n.ids)\par
+WiSDUpper <- rep(NA, n.ids)\par
+WiSDLower <- rep(NA, n.ids)\par
+\par
+for(i in 1:n.ids)\{\par
+\par
+WiSDMedian[i] <-quantile((BUGS.4$sims.list$sigma[,i]),c(0.5))\par
+WiSDUpper[i] <-quantile((BUGS.4$sims.list$sigma[,i]),c(0.975))\par
+WiSDLower[i] <-quantile((BUGS.4$sims.list$sigma[,i]),c(0.025))\par
+\par
+\}\par
+\par
+\par
+\par
+## can also include estimate of median sd on the plot ##\par
+MedSigma<-quantile(BUGS.4$sims.list$B,c(0.025,0.5,0.975))\par
+\par
+abline(a=MedSigma[2], b=0)\par
+abline(a=MedSigma[1], b=0, lty=2)\par
+abline(a=MedSigma[3], b=0, lty=2)\par
+\par
+## This can be contrasted with the same plot from BUGS model 3 - should notice less \par
+## shrinkage to mean with half-Cauchy ##\par
+\par
+###############################################################################\par
+## Next step is to develop a structured hglm with a fixed effect in the dispersion part \par
+## of the model - in this case we assume that the residual variance is greater in males\par
+## than females##\par
+## \par
+## Initially assuming no between-individual variation in residual variation so just the Sex affect ##\par
+\par
+## Different residual vars for males and females ##\par
+\par
+\par
+SexSpecificResidSD <-ifelse(simdat$sex=='F',1,1.5) ## female resid sd=1, male resid sd = 1.5\par
+\par
+SexSpecificResidSD<- rnorm(n,0, SexSpecificResidSD)## create sex-specific heterogeneous residual variance##\par
+\par
+## plot to check ##\par
+\par
+boxplot(SexSpecificResidSD~simdat$SEX)\par
+\par
+##\par
+\par
+\par
+responseC <- alpha + (b1*simdat$SEX) + (b2*simdat$Age)+BetVar + SexSpecificResidSD\par
+\par
+simdat$responseC<-responseC\par
+\par
+\par
+\par
+# BUGS model 5 includes a fixed effect for SEX in the dispersion part of the model \par
+## and a random effect in the mean and dispersion models for individual ID ##\par
+\par
+\par
+S <- as.numeric(tapply(simdat$SEX,simdat$id,mean)) ## Group-level indicator for Sex ##\par
+y<-responseC ## Note changing y resposne for this model ##\par
+\par
+BUGS5.data <- list("y","n","n.ids","Sex","Age","id","S")\par
+\par
+BUGS5.inits <- function() \{list(alpha=rnorm(n.ids), beta=rnorm(2),mu.a=rnorm(1), d.0=rnorm(1),d.1=rnorm(1), omega.sigma=runif(1),sig.a = runif(1), log.sigma=rnorm(n.ids))\}\par
+\par
+BUGS5.parameters <- c("alpha","beta","sig.a","mu.a", "d.0","d.1","omega.sigma")\par
+###\par
+\par
+BUGS.5 <- bugs(BUGS5.data, BUGS5.inits, BUGS5.parameters, "ModelWithLogNormalVariancesandGrpPredictorRaw.txt", n.chains=3, n.iter=300000,n.burnin=50000, n.thin=20,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+##\par
+\par
+##\par
+\par
+print(BUGS.5)\par
+\par
+\par
+quantile(sqrt(BUGS.5$sims.list$sig.a),c(0.025,0.5,0.975)) ## between-individual level sd ##\par
+\par
+\par
+## Can pull out parameters from dispersion models ##\par
+quantile(exp(BUGS.5$sims.list$d.0),c(0.025,0.5,0.975)) ##  For females ##\par
+quantile(exp(BUGS.5$sims.list$d.0+BUGS.5$sims.list$d.1),c(0.025,0.5,0.975)) ## for males ##\par
+\par
+\par
+##\par
+\par
+quantile((exp(BUGS.5$sims.list$omega.sigma)-1)^0.5,c(0.025,0.5,0.975)) ## cv for log-normal\par
+\par
+############################################################################################\par
+############################################################################################\par
+\par
+### Next model includes a fixed effect for sex and a random-intercept for bird id in\par
+### the dispersion part of a dhglm ##\par
+\par
+##Individual Residual Variance ##\par
+\par
+ ## differnt variances for males and females\par
+\par
+IndResidSD<- rlnorm(n.ids,0, 0.3) ## generates estimates of residual sd for each individual - males also higher resid var ####\par
+\par
+IndResidSDVec<-rep(IndResidSD, each=n.obs)\par
+\par
+IndResidVec <- rnorm(n,0,(IndResidSDVec*exp(0.4*simdat$SEX)))  ## Vector for residuals with heterogeneous individual residual sd ##\par
+                              \par
+\par
+\par
+responseD <- alpha + (b1*simdat$SEX) + (b2*simdat$Age)+BetVar + IndResidVec\par
+simdat$responseD<-responseD\par
+##\par
+\par
+\par
+## Run in BUGS ##\par
+\par
+y<-responseD## Note changing y resposne for this model ##\par
+\par
+\par
+\par
+BUGS6.data <- list("y","n","n.ids","Sex","Age","id")\par
+\par
+BUGS6.inits <- function() \{list(alpha=rnorm(1), beta=rnorm(2), d.0=rnorm(1),d.1=rnorm(1), u=rnorm(n.ids), v=rnorm(n.ids), sig.u=runif(1), sig.v=runif(1))\}\par
+\par
+BUGS6.parameters <- c("alpha","beta","sig.u","sig.v", "d.0","d.1","v","u")\par
+ \par
+BUGS.6 <- bugs(BUGS6.data, BUGS6.inits, BUGS6.parameters, "FullDHGLM.txt", n.chains=3, n.iter=300000,n.burnin=50000, n.thin=20,debug=T, bugs.directory = "C:/Users/Ian Cleasby/Desktop/winbugs14/WinBUGS14/", codaPkg=FALSE)\par
+ \par
+\par
+###\par
+quantile(sqrt(BUGS.6$sims.list$sig.u),c(0.025,0.5,0.975)) ## between-individual level sd in mean model ##\par
+quantile(sqrt(BUGS.6$sims.list$sig.v),c(0.025,0.5,0.975)) ## between-individual level sd in dispersion model ##\par
+\par
+\par
+\par
+## Can pull out parameters from dispersion models ##\par
+quantile(exp(BUGS.6$sims.list$d.0),c(0.025,0.5,0.975)) ##  For females ##\par
+quantile(exp(BUGS.6$sims.list$d.0+BUGS.6$sims.list$d.1),c(0.025,0.5,0.975)) ## for males ##\par
+\par
+###\par
+\par
+\par
+WiSDMedian <- rep(NA, n.ids)\par
+WiSDUpper <- rep(NA, n.ids)\par
+WiSDLower <- rep(NA, n.ids)\par
+\par
+for(i in 1:n.ids)\{\par
+\par
+WiSDMedian[i] <-quantile((BUGS.6$sims.list$v[,i]),c(0.5))\par
+WiSDUpper[i] <-quantile((BUGS.6$sims.list$v[,i]),c(0.975))\par
+WiSDLower[i] <-quantile((BUGS.6$sims.list$v[,i]),c(0.025))\par
+\par
+\}\par
+\par
+plot(WiSDMedian, IndResidSD, pch=19)\par
+cor.test(WiSDMedian, IndResidSD) ## can check correlation between predictions from model and raw simulated values (hopefully good) ##\par
+\par
+###############################################################################\par
+\par
+\par
+\par
+\par
+}
+ 
