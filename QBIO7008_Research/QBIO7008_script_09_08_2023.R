@@ -1,8 +1,8 @@
 ###### Script until 09/08/2023
 library("tidyverse")
 
-dragon_physio <- read_csv("FinalCelineStudentData.csv")
-dragon_disease <- read_csv("FinalMasterSTudentData.csv")
+dragon_physio <- read_csv("/Data/FinalCelineStudentData.csv")
+dragon_disease <- read_csv("/Data/FinalMasterSTudentData.csv")
 
 #Filter out outlier body temperature data:
 dragon_physio <- dragon_physio |> filter(Body.Temp.C > 0 & Body.Temp.C < 50)
@@ -134,7 +134,7 @@ ggplot(dragon_full_left, aes(x = Sex.sightings, y = Weight.g.)) + geom_boxplot()
 #Males are longer and heavier than females on average
 
 #Body length predicting body temp:
-ggplot(dragon_full_left, aes(x = SVL, y = Body.Temp.C)) + geom_point() + geom_smooth()
+ggplot(dragon_full_left, aes(x = Weight.g./SVL, y = Body.Temp.C)) + geom_point() + geom_smooth()
 #No strong correlation?
 
 #Body weight predicting body temp:
