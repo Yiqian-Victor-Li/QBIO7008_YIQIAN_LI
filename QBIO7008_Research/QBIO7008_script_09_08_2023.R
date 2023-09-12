@@ -1,8 +1,8 @@
 ###### Script until 09/08/2023
 library("tidyverse")
 
-dragon_physio <- read_csv("/Data/FinalCelineStudentData.csv")
-dragon_disease <- read_csv("/Data/FinalMasterSTudentData.csv")
+dragon_physio <- read_csv("Data/FinalCelineStudentData.csv")
+dragon_disease <- read_csv("Data/FinalMasterSTudentData.csv")
 
 #Filter out outlier body temperature data:
 dragon_physio <- dragon_physio |> filter(Body.Temp.C > 0 & Body.Temp.C < 50)
