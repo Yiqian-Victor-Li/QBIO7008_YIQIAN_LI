@@ -1,4 +1,4 @@
-###### Script until 03/10/2023
+###### Script until 16/10/2023
 library("tidyverse")
 library(arm)
 library(MuMIn)
@@ -31,77 +31,70 @@ which(is.na(dragon_physio$Season), arr.ind=TRUE) # all good
 ## Clean up the data to excluding data with NA in weight and location:
 
 dragon_physio_clean <- dragon_physio |> drop_na(c("Weight..gms.", "Location"))
-                                                  
-                                                  
-###### KEEP GOING FROM HERE
                                                 
                                                 
 #### Checking and saving outliers with 25% and 70% quantile: 
 
-
-## Body temp outlier
-unique_season <- unique(dragon_physio$Season)
-
-column_names <- colnames(dragon_physio)
-Total_outlier_body_temp <- data.frame(matrix(nrow = 0, ncol = length(dragon_physio)))
+## Finding body temp outlier:
+unique_season <- unique(dragon_physio_clean$Season)
+column_names <- colnames(dragon_physio_clean)
+Total_outlier_body_temp <- data.frame(matrix(nrow = 0, ncol = length(dragon_physio_clean)))
 colnames(Total_outlier_body_temp) <- column_names
 
 ## Loop through body temp outliers by seasons
-for (x in unique_season) {
-    data_for_this_season <- dragon_physio |> filter(Season == x)
+for (season in unique_season) {
+    data_for_this_season <- dragon_physio_clean |> filter(Season == season)
     
-    Quantile_body_temp <- quantile(data_for_this_season$Body.Temp.C, probs=c(.25, .75), na.rm = FALSE)
-    IQR_body_temp <- IQR(data_for_this_season$Body.Temp.C)
+    Quantile_body_temp <- quantile(data_for_this_season$Body.Temp..Celcius., probs=c(.25, .75), na.rm = FALSE)
+    IQR_body_temp <- IQR(data_for_this_season$Body.Temp..Celcius.)
     
     Lower_body_temp <- Quantile_body_temp[1] - 1.5*IQR_body_temp
     Upper_body_temp <- Quantile_body_temp[2] + 1.5*IQR_body_temp
     
-    Outlier_body_temp <- subset(data_for_this_season, Body.Temp.C < Lower_body_temp | Body.Temp.C > Upper_body_temp)
+    Outlier_body_temp <- subset(data_for_this_season, Body.Temp..Celcius. < Lower_body_temp | Body.Temp..Celcius. > Upper_body_temp)
     Total_outlier_body_temp <- rbind(Total_outlier_body_temp, Outlier_body_temp)
 }
 
 
-
 ## Body weight outlier with 0 or NA: 
 
-hist(dragon_physio$Weight.g.)
+hist(dragon_physio_clean$Weight..gms.)
 
-NA_body_weight <- dragon_physio[is.na(dragon_physio$Weight.g.),]
+NA_body_weight <- dragon_physio_clean[is.na(dragon_physio_clean$Weight..gms.),]
 
-zero_body_weight <- dragon_physio |> filter(Weight.g. <= 0)
+zero_body_weight <- dragon_physio_clean |> filter(Weight..gms. <= 0)
 
 Outlier_body_weight <- rbind(NA_body_weight, zero_body_weight)
 
 ## SVL outliers: 
 
-hist(dragon_physio$SVL)
-max(dragon_physio$SVL)
+hist(dragon_physio_clean$Torso..mms.)
+max(dragon_physio_clean$Torso..mms.)
 
-NA_body_length <- dragon_physio[is.na(dragon_physio$SVL),]
+NA_body_length <- dragon_physio_clean[is.na(dragon_physio_clean$Torso..mms.),]
 
-zero_body_length <- dragon_physio |> filter(SVL <= 0)
+zero_body_length <- dragon_physio_clean |> filter(Torso..mms. <= 0)
 
 Outlier_body_length <- rbind(NA_body_length, zero_body_length)
 
-##Remove NA for data missing SVL and weight:
-dragon_physio_no_NA <- dragon_physio |> drop_na(c("SVL", "Weight.g."))
-
 ##Filter out body weight and length = 0 data 
-dragon_physio_no_NA <- dragon_physio_no_NA |> filter(Weight.g. > 0)
-dragon_physio_no_NA <- dragon_physio_no_NA |> filter(SVL > 0)
+dragon_physio_clean <- dragon_physio_clean |> filter(Weight..gms. > 0)
+dragon_physio_clean <- dragon_physio_clean |> filter(Torso..mms. > 0)
 
 ## Adding weight to length ratio on log scale
-dragon_physio_no_NA$W_to_L_ratio <- log10(dragon_physio_no_NA$Weight.g.)/log10(dragon_physio_no_NA$SVL)
+dragon_physio_clean$W_to_L_ratio <- log10(dragon_physio_clean$Weight..gms.)/log10(dragon_physio_clean$Torso..mms.)
 
 ## Outlier of body weight to length log ratio outlier using 3 sd: 
-mean(dragon_physio_no_NA$W_to_L_ratio)
-Outlier_W_to_L_ratio <- filter(dragon_physio_no_NA, W_to_L_ratio < (mean(dragon_physio_no_NA$W_to_L_ratio, na.rm=TRUE) - 3*sd(dragon_physio_no_NA$W_to_L_ratio, na.rm=TRUE)) | W_to_L_ratio > (mean(dragon_physio_no_NA$W_to_L_ratio, na.rm=TRUE) + 3*sd(dragon_physio_no_NA$W_to_L_ratio, na.rm=TRUE)))
-Outlier_W_to_L_ratio <- Outlier_W_to_L_ratio[, -which(names(Outlier_W_to_L_ratio) == "W_to_L_ratio")]
+mean(dragon_physio_clean$W_to_L_ratio)
+Outlier_W_to_L_ratio <- filter(dragon_physio_clean, W_to_L_ratio < (mean(dragon_physio_clean$W_to_L_ratio, na.rm=TRUE) - 3*sd(dragon_physio_clean$W_to_L_ratio, na.rm=TRUE)) | W_to_L_ratio > (mean(dragon_physio_clean$W_to_L_ratio, na.rm=TRUE) + 3*sd(dragon_physio_clean$W_to_L_ratio, na.rm=TRUE)))
+Outlier_W_to_L_ratio <- Outlier_W_to_L_ratio[, -which(names(Outlier_W_to_L_ratio) == "W_to_L_ratio")] # drop the W_to_L_ratio column
 
 ## Appending all outliers together and remove duplicated data. 
-
 Total_Outlier <- rbind(Total_outlier_body_temp, Outlier_body_weight, Outlier_body_length, Outlier_W_to_L_ratio)
 Total_Outlier <- Total_Outlier[!duplicated(Total_Outlier), ]
+
+#### Up until here 
+
 
 ## Filtering out all the outlier rows
 ## https://stackoverflow.com/questions/17338411/delete-rows-that-exist-in-another-data-frame
