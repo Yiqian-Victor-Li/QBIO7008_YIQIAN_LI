@@ -93,19 +93,14 @@ Outlier_W_to_L_ratio <- Outlier_W_to_L_ratio[, -which(names(Outlier_W_to_L_ratio
 Total_Outlier <- rbind(Total_outlier_body_temp, Outlier_body_weight, Outlier_body_length, Outlier_W_to_L_ratio)
 Total_Outlier <- Total_Outlier[!duplicated(Total_Outlier), ]
 
-#### Up until here 
-
-
 ## Filtering out all the outlier rows
 ## https://stackoverflow.com/questions/17338411/delete-rows-that-exist-in-another-data-frame
 
-dragon_physio_clean <- anti_join(dragon_physio, Total_Outlier)
-dragon_physio_clean$W_to_L_ratio <- log10(dragon_physio_clean$Weight.g.)/log10(dragon_physio_clean$SVL)
+dragon_physio_clean <- anti_join(dragon_physio_clean, Total_Outlier)
+dragon_physio_clean$W_to_L_ratio <- log10(dragon_physio_clean$Weight..gms.)/log10(dragon_physio_clean$Torso..mms.) # Clean up complete
 
-# Clear up any leftover NAs in any other columns
 
-dragon_physio_clean <- na.omit(dragon_physio_clean)
-
+######
 # Factorise seasons: 
 dragon_physio_clean$Season <- as.factor(dragon_physio_clean$Season)
 
@@ -118,6 +113,11 @@ dragon_physio_clean <- dragon_physio_clean |> rename(c("Freq" = "number_of_sight
 dragon_physio_clean$number_of_sighting <- as.numeric(dragon_physio_clean$number_of_sighting) 
 
 str(dragon_physio_clean)
+
+#####
+##### Up until this point
+
+
 #############
 ############# Analysis following Anne G. Hertel tutorial 
 
