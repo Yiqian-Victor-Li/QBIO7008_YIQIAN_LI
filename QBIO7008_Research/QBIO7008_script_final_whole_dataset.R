@@ -117,7 +117,7 @@ str(dragon_physio_clean)
 
 
 #############
-############# Analysis following Anne G. Hertel tutorial 
+############# Analysis
 
 ## How many samples in each season: it is not very evenly distributed
 table(dragon_physio_clean$Season)
